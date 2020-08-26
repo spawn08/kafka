@@ -17,8 +17,8 @@
 package org.apache.kafka.streams.processor;
 
 import org.apache.kafka.streams.errors.StreamsException;
-import org.apache.kafka.streams.processor.internals.ProcessorContextReverseAdapter;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.internals.StoreToProcessorContextAdapter;
 
 /**
  * A storage engine for managing state maintained by a stream processor.
@@ -27,7 +27,7 @@ import org.apache.kafka.streams.processor.api.ProcessorContext;
  * all data into this store directory.
  * The store directory must be created with the state directory.
  * The state directory can be obtained via {@link ProcessorContext#stateDir() #stateDir()} using the
- * {@link ProcessorContext} provided via {@link #init(ProcessorContext, StateStore) init(...)}.
+ * {@link ProcessorContext} provided via {@link #init(StateStoreContext, StateStore) init(...)}.
  * <p>
  * Using nested store directories within the state directory isolates different state stores.
  * If a state store would write into the state directory directly, it might conflict with others state stores and thus,
@@ -60,7 +60,7 @@ public interface StateStore {
      * interface {@link BatchingStateRestoreCallback} which extends {@link StateRestoreCallback} to
      * let users implement bulk-load restoration logic instead of restoring one record at a time.
      * <p>
-     * This method is not called if {@link StateStore#init(ProcessorContext, StateStore)}
+     * This method is not called if {@link StateStore#init(StateStoreContext, StateStore)}
      * is implemented.
      *
      * @throws IllegalStateException If store gets registered after initialized is already finished
@@ -84,13 +84,8 @@ public interface StateStore {
      * @throws IllegalStateException If store gets registered after initialized is already finished
      * @throws StreamsException if the store's change log does not contain the partition
      */
-    default void init(final ProcessorContext<?, ?> context, final StateStore root) {
-        final org.apache.kafka.streams.processor.ProcessorContext adapted =
-            ProcessorContextReverseAdapter.adapt(
-                context,
-                new ProcessorContextReverseAdapter.UnsupportedDeprecatedForwarder()
-            );
-        init(adapted, root);
+    default void init(final StateStoreContext context, final StateStore root) {
+        init(StoreToProcessorContextAdapter.adapt(context), root);
     }
 
     /**

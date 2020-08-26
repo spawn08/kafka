@@ -35,6 +35,7 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.StateStoreContext;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.internals.ClientUtils;
@@ -530,6 +531,61 @@ public class MockProcessorContext<KForward, VForward> implements ProcessorContex
                 "For processor unit tests, use an in-memory state store with change-logging disabled. " +
                 "Alternatively, use the TopologyTestDriver for testing processor/store/topology integration."
         );
+    }
+
+    /**
+     * Used to get a {@link StateStoreContext} for use with
+     * {@link StateStore#init(StateStoreContext, StateStore)}
+     * if you need to initialize a store for your tests.
+     * @return a {@link StateStoreContext} that delegates to this ProcessorContext.
+     */
+    public StateStoreContext getStateStoreContext() {
+        return new StateStoreContext() {
+            @Override
+            public String applicationId() {
+                return MockProcessorContext.this.applicationId();
+            }
+
+            @Override
+            public TaskId taskId() {
+                return MockProcessorContext.this.taskId();
+            }
+
+            @Override
+            public Serde<?> keySerde() {
+                return MockProcessorContext.this.keySerde();
+            }
+
+            @Override
+            public Serde<?> valueSerde() {
+                return MockProcessorContext.this.valueSerde();
+            }
+
+            @Override
+            public File stateDir() {
+                return MockProcessorContext.this.stateDir();
+            }
+
+            @Override
+            public StreamsMetrics metrics() {
+                return MockProcessorContext.this.metrics();
+            }
+
+            @Override
+            public void register(final StateStore store, final StateRestoreCallback stateRestoreCallback) {
+                MockProcessorContext.this.register(store, stateRestoreCallback);
+            }
+
+            @Override
+            public Map<String, Object> appConfigs() {
+                return MockProcessorContext.this.appConfigs();
+            }
+
+            @Override
+            public Map<String, Object> appConfigsWithPrefix(final String prefix) {
+                return MockProcessorContext.this.appConfigsWithPrefix(prefix);
+            }
+        };
     }
 
     private static long getTimestamp(final To to) {
