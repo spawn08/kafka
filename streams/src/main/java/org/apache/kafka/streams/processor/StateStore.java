@@ -60,7 +60,7 @@ public interface StateStore {
      * interface {@link BatchingStateRestoreCallback} which extends {@link StateRestoreCallback} to
      * let users implement bulk-load restoration logic instead of restoring one record at a time.
      * <p>
-     * This method is not called if {@link StateStore#init(ProcessorContext, org.apache.kafka.streams.processor.StateStore)}
+     * This method is not called if {@link StateStore#init(ProcessorContext, StateStore)}
      * is implemented.
      *
      * @throws IllegalStateException If store gets registered after initialized is already finished
