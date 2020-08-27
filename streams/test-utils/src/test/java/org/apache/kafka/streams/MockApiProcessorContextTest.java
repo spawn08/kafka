@@ -25,7 +25,6 @@ import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.Processor;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
-import org.apache.kafka.streams.processor.internals.ProcessorContextReverseAdapter;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StoreBuilder;
 import org.apache.kafka.streams.state.Stores;
@@ -241,12 +240,7 @@ public class MockApiProcessorContextTest {
 
         final KeyValueStore<String, Long> store = storeBuilder.build();
 
-        store.init(ProcessorContextReverseAdapter.adapt(context, new ProcessorContextReverseAdapter.DeprecatedForwarder() {
-            @Override
-            public <K, V> void forward(final K key, final V value, final int childIndex) {
-                throw new UnsupportedOperationException();
-            }
-        }), store);
+        store.init(context.getStateStoreContext(), store);
 
         processor.init(context);
 

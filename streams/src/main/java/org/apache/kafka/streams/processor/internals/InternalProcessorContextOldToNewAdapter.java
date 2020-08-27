@@ -36,21 +36,21 @@ import java.io.File;
 import java.time.Duration;
 import java.util.Map;
 
-public final class ProcessorContextAdapter<KForward, VForward>
+public final class InternalProcessorContextOldToNewAdapter<KForward, VForward>
     implements ProcessorContext<KForward, VForward>, StateStoreContext, InternalApiProcessorContext<KForward, VForward> {
 
     private final InternalProcessorContext delegate;
 
     @SuppressWarnings("unchecked")
     public static <KForward, VForward> InternalApiProcessorContext<KForward, VForward> adapt(final InternalProcessorContext delegate) {
-        if (delegate instanceof InternalProcessorContextReverseAdapter) {
-            return (InternalApiProcessorContext<KForward, VForward>) ((InternalProcessorContextReverseAdapter) delegate).delegate();
+        if (delegate instanceof InternalProcessorContextNewToOldAdapter) {
+            return (InternalApiProcessorContext<KForward, VForward>) ((InternalProcessorContextNewToOldAdapter) delegate).delegate();
         } else {
-            return new ProcessorContextAdapter<>(delegate);
+            return new InternalProcessorContextOldToNewAdapter<>(delegate);
         }
     }
 
-    private ProcessorContextAdapter(final InternalProcessorContext delegate) {
+    private InternalProcessorContextOldToNewAdapter(final InternalProcessorContext delegate) {
         this.delegate = delegate;
     }
 
