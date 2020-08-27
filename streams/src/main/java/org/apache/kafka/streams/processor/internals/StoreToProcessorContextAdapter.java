@@ -37,11 +37,7 @@ public final class StoreToProcessorContextAdapter implements ProcessorContext {
     private final StateStoreContext delegate;
 
     public static ProcessorContext adapt(final StateStoreContext delegate) {
-        if (delegate instanceof ProcessorToStoreContextAdapter) {
-            return ((ProcessorToStoreContextAdapter) delegate).delegate();
-        } else {
-            return new StoreToProcessorContextAdapter(delegate);
-        }
+        return new StoreToProcessorContextAdapter(delegate);
     }
 
     private StoreToProcessorContextAdapter(final StateStoreContext delegate) {

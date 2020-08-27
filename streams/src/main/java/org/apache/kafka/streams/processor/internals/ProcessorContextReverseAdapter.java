@@ -98,7 +98,7 @@ public final class ProcessorContextReverseAdapter implements org.apache.kafka.st
 
     @Override
     public void register(final StateStore store, final StateRestoreCallback stateRestoreCallback) {
-        delegate.register(store, stateRestoreCallback);
+        throw new UnsupportedOperationException("The supplied ProcsesorContext doesn't support registering stateRestoreCallbacks");
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.apache.kafka.streams.processor.PunctuationType;
 import org.apache.kafka.streams.processor.Punctuator;
 import org.apache.kafka.streams.processor.StateRestoreCallback;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.StateStoreContext;
 import org.apache.kafka.streams.processor.TaskId;
 import org.apache.kafka.streams.processor.To;
 import org.apache.kafka.streams.processor.api.ProcessorContext;
@@ -36,7 +37,7 @@ import java.time.Duration;
 import java.util.Map;
 
 public final class ProcessorContextAdapter<KForward, VForward>
-    implements ProcessorContext<KForward, VForward>, InternalApiProcessorContext<KForward, VForward> {
+    implements ProcessorContext<KForward, VForward>, StateStoreContext, InternalApiProcessorContext<KForward, VForward> {
 
     private final InternalProcessorContext delegate;
 

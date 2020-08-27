@@ -412,12 +412,6 @@ public class MockProcessorContext<KForward, VForward> implements ProcessorContex
 
     // mocks ================================================
 
-    @Override
-    public void register(final StateStore store,
-                         final StateRestoreCallback stateRestoreCallbackIsIgnoredInMock) {
-        stateStores.put(store.name(), store);
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     public <S extends StateStore> S getStateStore(final String name) {
@@ -572,8 +566,8 @@ public class MockProcessorContext<KForward, VForward> implements ProcessorContex
             }
 
             @Override
-            public void register(final StateStore store, final StateRestoreCallback stateRestoreCallback) {
-                MockProcessorContext.this.register(store, stateRestoreCallback);
+            public void register(final StateStore store, final StateRestoreCallback ignoredInMock) {
+                stateStores.put(store.name(), store);
             }
 
             @Override

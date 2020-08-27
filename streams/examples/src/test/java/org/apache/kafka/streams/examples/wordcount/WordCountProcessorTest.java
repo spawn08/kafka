@@ -45,7 +45,6 @@ public class WordCountProcessorTest {
                 // Caching is disabled by default, but FYI: caching is also not supported by MockProcessorContext.
                 .build();
         store.init(context.getStateStoreContext(), store);
-        context.register(store, null);
 
         // Create and initialize the processor under test
         final Processor<String, String, String, String> processor = new WordCountProcessorDemo.MyProcessorSupplier().get();
