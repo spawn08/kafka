@@ -39,6 +39,7 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.errors.LockException;
 import org.apache.kafka.streams.errors.StreamsException;
+import org.apache.kafka.streams.errors.TaskCorruptedException;
 import org.apache.kafka.streams.errors.TaskMigratedException;
 import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.TaskId;
@@ -71,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -652,7 +654,8 @@ public class TaskManagerTest {
         assertThat(taskManager.tryToCompleteRestoration(time.milliseconds()), is(true));
         assertThat(task00.state(), is(Task.State.RUNNING));
 
-        taskManager.handleCorruption(singletonMap(taskId00, taskId00Partitions));
+        task00.setChangelogOffsets(singletonMap(t1p0, 0L));
+        taskManager.handleCorruption(singleton(taskId00));
 
         assertThat(task00.commitPrepared, is(true));
         assertThat(task00.state(), is(Task.State.CREATED));
@@ -696,7 +699,8 @@ public class TaskManagerTest {
         assertThat(taskManager.tryToCompleteRestoration(time.milliseconds()), is(true));
         assertThat(task00.state(), is(Task.State.RUNNING));
 
-        taskManager.handleCorruption(singletonMap(taskId00, taskId00Partitions));
+        task00.setChangelogOffsets(singletonMap(t1p0, 0L));
+        taskManager.handleCorruption(singleton(taskId00));
         assertThat(task00.commitPrepared, is(true));
         assertThat(task00.state(), is(Task.State.CREATED));
         assertThat(taskManager.activeTaskMap(), is(singletonMap(taskId00, task00)));
@@ -741,7 +745,8 @@ public class TaskManagerTest {
         assertThat(nonCorruptedTask.state(), is(Task.State.RUNNING));
         nonCorruptedTask.setCommitNeeded();
 
-        taskManager.handleCorruption(singletonMap(taskId00, taskId00Partitions));
+        corruptedTask.setChangelogOffsets(singletonMap(t1p0, 0L));
+        taskManager.handleCorruption(singleton(taskId00));
 
         assertTrue(nonCorruptedTask.commitPrepared);
         verify(consumer);
@@ -780,7 +785,8 @@ public class TaskManagerTest {
         taskManager.handleAssignment(assignment, emptyMap());
         assertThat(nonRunningNonCorruptedTask.state(), is(Task.State.CREATED));
 
-        taskManager.handleCorruption(singletonMap(taskId00, taskId00Partitions));
+        corruptedTask.setChangelogOffsets(singletonMap(t1p0, 0L));
+        taskManager.handleCorruption(singleton(taskId00));
 
         verify(activeTaskCreator);
         assertFalse(nonRunningNonCorruptedTask.commitPrepared);
@@ -820,7 +826,8 @@ public class TaskManagerTest {
 
         runningNonCorruptedActive.setCommitNeeded();
 
-        assertThrows(TaskMigratedException.class, () -> taskManager.handleCorruption(singletonMap(taskId00, taskId00Partitions)));
+        corruptedStandby.setChangelogOffsets(singletonMap(t1p0, 0L));
+        assertThrows(TaskMigratedException.class, () -> taskManager.handleCorruption(singleton(taskId00)));
 
 
         assertThat(corruptedStandby.commitPrepared, is(true));
@@ -2203,6 +2210,69 @@ public class TaskManagerTest {
     }
 
     @Test
+    public void shouldNotFailOnTimeoutException() {
+        final AtomicReference<TimeoutException> timeoutException = new AtomicReference<>();
+        timeoutException.set(new TimeoutException("Skip me!"));
+
+        final StateMachineTask task00 = new StateMachineTask(taskId00, taskId00Partitions, true);
+        task00.transitionTo(State.RESTORING);
+        task00.transitionTo(State.RUNNING);
+        final StateMachineTask task01 = new StateMachineTask(taskId01, taskId01Partitions, true) {
+            @Override
+            public boolean process(final long wallClockTime) {
+                final TimeoutException exception = timeoutException.get();
+                if (exception != null) {
+                    throw exception;
+                }
+                return true;
+            }
+        };
+        task01.transitionTo(State.RESTORING);
+        task01.transitionTo(State.RUNNING);
+        final StateMachineTask task02 = new StateMachineTask(taskId02, taskId02Partitions, true);
+        task02.transitionTo(State.RESTORING);
+        task02.transitionTo(State.RUNNING);
+
+        taskManager.addTask(task00);
+        taskManager.addTask(task01);
+        taskManager.addTask(task02);
+
+        task00.addRecords(
+            t1p0,
+            Arrays.asList(
+                getConsumerRecord(t1p0, 0L),
+                getConsumerRecord(t1p0, 1L)
+            )
+        );
+        task01.addRecords(
+            t1p1,
+            Arrays.asList(
+                getConsumerRecord(t1p1, 0L),
+                getConsumerRecord(t1p1, 1L)
+            )
+        );
+        task02.addRecords(
+            t1p2,
+            Arrays.asList(
+                getConsumerRecord(t1p2, 0L),
+                getConsumerRecord(t1p2, 1L)
+            )
+        );
+
+        // should only process 2 records, because task01 throws TimeoutException
+        assertThat(taskManager.process(1, time), is(2));
+        assertThat(task01.timeout, equalTo(time.milliseconds()));
+
+        //  retry without error
+        timeoutException.set(null);
+        assertThat(taskManager.process(1, time), is(3));
+        assertThat(task01.timeout, equalTo(null));
+
+        // there should still be one record for task01 to be processed
+        assertThat(taskManager.process(1, time), is(1));
+    }
+
+    @Test
     public void shouldPropagateTaskMigratedExceptionsInProcessActiveTasks() {
         final StateMachineTask task00 = new StateMachineTask(taskId00, taskId00Partitions, true) {
             @Override
@@ -2653,19 +2723,18 @@ public class TaskManagerTest {
         task00.setCommitNeeded();
         task01.setCommitNeeded();
 
-        assertThat(taskManager.commit(mkSet(task00, task01, task02)), equalTo(1));
-        assertThat(task00.timeout, equalTo(time.milliseconds()));
-        assertNull(task01.timeout);
-        assertNull(task02.timeout);
-
-        assertThat(taskManager.commit(mkSet(task00, task01, task02)), equalTo(1));
-        assertNull(task00.timeout);
-        assertNull(task01.timeout);
-        assertNull(task02.timeout);
+        final TaskCorruptedException exception = assertThrows(
+            TaskCorruptedException.class,
+            () -> taskManager.commit(mkSet(task00, task01, task02))
+        );
+        assertThat(
+            exception.corruptedTasks(),
+            equalTo(Collections.singleton(taskId00))
+        );
     }
 
     @Test
-    public void shouldNotFailForTimeoutExceptionOnCommitWithEosBeta() {
+    public void shouldThrowTaskCorruptedExceptionForTimeoutExceptionOnCommitWithEosBeta() {
         setUpTaskManager(ProcessingMode.EXACTLY_ONCE_BETA);
 
         final StreamsProducer producer = mock(StreamsProducer.class);
@@ -2695,15 +2764,14 @@ public class TaskManagerTest {
         task00.setCommitNeeded();
         task01.setCommitNeeded();
 
-        assertThat(taskManager.commit(mkSet(task00, task01, task02)), equalTo(0));
-        assertThat(task00.timeout, equalTo(time.milliseconds()));
-        assertThat(task01.timeout, equalTo(time.milliseconds()));
-        assertNull(task02.timeout);
-
-        assertThat(taskManager.commit(mkSet(task00, task01, task02)), equalTo(2));
-        assertNull(task00.timeout);
-        assertNull(task01.timeout);
-        assertNull(task02.timeout);
+        final TaskCorruptedException exception = assertThrows(
+            TaskCorruptedException.class,
+            () -> taskManager.commit(mkSet(task00, task01, task02))
+        );
+        assertThat(
+            exception.corruptedTasks(),
+            equalTo(mkSet(taskId00, taskId01))
+        );
     }
 
     @Test
