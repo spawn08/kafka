@@ -52,39 +52,36 @@ public class RocksDBTimeOrderedWindowStore
 
     @Override
     public void put(final Bytes key, final byte[] value, final long timestamp) {
-        // Skip if value is null and duplicates are allowed since this delete is a no-op
         if (!(value == null && retainDuplicates)) {
             maybeUpdateSeqnumForDups();
             wrapped().put(TimeOrderedKeySchema.toStoreKeyBinary(key, timestamp, seqnum), value);
+        } else {
+            // Delete all duplicates for the specified key and timestamp
+            wrapped().remove(key, timestamp);
         }
     }
 
     @Override
     public byte[] fetch(final Bytes key, final long timestamp) {
-        return wrapped().get(TimeOrderedKeySchema.toStoreKeyBinary(key, timestamp, seqnum));
+        throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("deprecation") // note, this method must be kept if super#fetch(...) is removed
     @Override
     public WindowStoreIterator<byte[]> fetch(final Bytes key, final long timeFrom, final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().fetch(key, timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).valuesIterator();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public WindowStoreIterator<byte[]> backwardFetch(final Bytes key, final long timeFrom, final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().backwardFetch(key, timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).valuesIterator();
+        throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("deprecation") // note, this method must be kept if super#fetch(...) is removed
     @Override
     public KeyValueIterator<Windowed<Bytes>, byte[]> fetch(final Bytes keyFrom,
                                                            final Bytes keyTo,
                                                            final long timeFrom,
                                                            final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().fetch(keyFrom, keyTo, timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).keyValueIterator();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -92,8 +89,7 @@ public class RocksDBTimeOrderedWindowStore
                                                                    final Bytes keyTo,
                                                                    final long timeFrom,
                                                                    final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().backwardFetch(keyFrom, keyTo, timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).keyValueIterator();
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -104,21 +100,17 @@ public class RocksDBTimeOrderedWindowStore
 
     @Override
     public KeyValueIterator<Windowed<Bytes>, byte[]> backwardAll() {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().backwardAll();
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).keyValueIterator();
+        throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("deprecation") // note, this method must be kept if super#fetchAll(...) is removed
     @Override
     public KeyValueIterator<Windowed<Bytes>, byte[]> fetchAll(final long timeFrom, final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().fetchAll(timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).keyValueIterator();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public KeyValueIterator<Windowed<Bytes>, byte[]> backwardFetchAll(final long timeFrom, final long timeTo) {
-        final KeyValueIterator<Bytes, byte[]> bytesIterator = wrapped().backwardFetchAll(timeFrom, timeTo);
-        return new TimeOrderedWindowStoreIteratorWrapper(bytesIterator, windowSize).keyValueIterator();
+        throw new UnsupportedOperationException();
     }
 
     private void maybeUpdateSeqnumForDups() {

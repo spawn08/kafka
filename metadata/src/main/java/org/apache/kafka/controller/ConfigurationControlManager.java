@@ -27,7 +27,7 @@ import org.apache.kafka.common.metadata.ConfigRecord;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ApiError;
 import org.apache.kafka.common.utils.LogContext;
-import org.apache.kafka.metadata.ApiMessageAndVersion;
+import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
 import org.slf4j.Logger;
@@ -44,6 +44,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 import static org.apache.kafka.clients.admin.AlterConfigOp.OpType.APPEND;
+import static org.apache.kafka.common.metadata.MetadataRecordType.CONFIG_RECORD;
 
 
 public class ConfigurationControlManager {
@@ -146,7 +147,7 @@ public class ConfigurationControlManager {
                     setResourceType(configResource.type().id()).
                     setResourceName(configResource.name()).
                     setName(key).
-                    setValue(newValue), (short) 0));
+                    setValue(newValue), CONFIG_RECORD.highestSupportedVersion()));
             }
         }
         outputRecords.addAll(newRecords);
@@ -199,7 +200,7 @@ public class ConfigurationControlManager {
                     setResourceType(configResource.type().id()).
                     setResourceName(configResource.name()).
                     setName(key).
-                    setValue(newValue), (short) 0));
+                    setValue(newValue), CONFIG_RECORD.highestSupportedVersion()));
             }
         }
         for (String key : currentConfigs.keySet()) {
@@ -208,7 +209,7 @@ public class ConfigurationControlManager {
                     setResourceType(configResource.type().id()).
                     setResourceName(configResource.name()).
                     setName(key).
-                    setValue(null), (short) 0));
+                    setValue(null), CONFIG_RECORD.highestSupportedVersion()));
             }
         }
         outputRecords.addAll(newRecords);
@@ -374,6 +375,10 @@ public class ConfigurationControlManager {
         configData.remove(new ConfigResource(Type.TOPIC, name));
     }
 
+    boolean uncleanLeaderElectionEnabledForTopic(String name) {
+        return false; // TODO: support configuring unclean leader election.
+    }
+
     class ConfigurationControlIterator implements Iterator<List<ApiMessageAndVersion>> {
         private final long epoch;
         private final Iterator<Entry<ConfigResource, TimelineHashMap<String, String>>> iterator;
@@ -399,7 +404,7 @@ public class ConfigurationControlManager {
                     setResourceName(resource.name()).
                     setResourceType(resource.type().id()).
                     setName(configEntry.getKey()).
-                    setValue(configEntry.getValue()), (short) 0));
+                    setValue(configEntry.getValue()), CONFIG_RECORD.highestSupportedVersion()));
             }
             return records;
         }

@@ -31,12 +31,14 @@ import java.util.TreeMap;
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.ApiError;
-import org.apache.kafka.metadata.ApiMessageAndVersion;
+import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.metadata.FeatureMap;
 import org.apache.kafka.metadata.FeatureMapAndEpoch;
 import org.apache.kafka.metadata.VersionRange;
 import org.apache.kafka.timeline.SnapshotRegistry;
 import org.apache.kafka.timeline.TimelineHashMap;
+
+import static org.apache.kafka.common.metadata.MetadataRecordType.FEATURE_LEVEL_RECORD;
 
 
 public class FeatureControlManager {
@@ -107,7 +109,7 @@ public class FeatureControlManager {
         records.add(new ApiMessageAndVersion(
             new FeatureLevelRecord().setName(featureName).
                 setMinFeatureLevel(newRange.min()).setMaxFeatureLevel(newRange.max()),
-            (short) 0));
+            FEATURE_LEVEL_RECORD.highestSupportedVersion()));
         return ApiError.NONE;
     }
 
@@ -144,7 +146,7 @@ public class FeatureControlManager {
             return Collections.singletonList(new ApiMessageAndVersion(new FeatureLevelRecord().
                 setName(entry.getKey()).
                 setMinFeatureLevel(versions.min()).
-                setMaxFeatureLevel(versions.max()), (short) 0));
+                setMaxFeatureLevel(versions.max()), FEATURE_LEVEL_RECORD.highestSupportedVersion()));
         }
     }
 

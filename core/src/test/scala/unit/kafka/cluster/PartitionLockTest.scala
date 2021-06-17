@@ -20,11 +20,11 @@ package kafka.cluster
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent._
-
 import kafka.api.ApiVersion
 import kafka.log._
 import kafka.server._
 import kafka.server.checkpoints.OffsetCheckpoints
+import kafka.server.epoch.LeaderEpochFileCache
 import kafka.utils._
 import org.apache.kafka.common.message.LeaderAndIsrRequestData.LeaderAndIsrPartitionState
 import org.apache.kafka.common.{TopicPartition, Uuid}
@@ -280,7 +280,26 @@ class PartitionLockTest extends Logging {
 
       override def createLog(isNew: Boolean, isFutureReplica: Boolean, offsetCheckpoints: OffsetCheckpoints, topicId: Option[Uuid]): Log = {
         val log = super.createLog(isNew, isFutureReplica, offsetCheckpoints, None)
-        new SlowLog(log, mockTime, appendSemaphore)
+        val logDirFailureChannel = new LogDirFailureChannel(1)
+        val segments = new LogSegments(log.topicPartition)
+        val leaderEpochCache = Log.maybeCreateLeaderEpochCache(log.dir, log.topicPartition, logDirFailureChannel, log.config.messageFormatVersion.recordVersion, "")
+        val maxProducerIdExpirationMs = 60 * 60 * 1000
+        val producerStateManager = new ProducerStateManager(log.topicPartition, log.dir, maxProducerIdExpirationMs)
+        val offsets = LogLoader.load(LoadLogParams(
+          log.dir,
+          log.topicPartition,
+          log.config,
+          mockTime.scheduler,
+          mockTime,
+          logDirFailureChannel,
+          hadCleanShutdown = true,
+          segments,
+          0L,
+          0L,
+          maxProducerIdExpirationMs,
+          leaderEpochCache,
+          producerStateManager))
+        new SlowLog(log, segments, offsets, leaderEpochCache, producerStateManager, mockTime, logDirFailureChannel, appendSemaphore)
       }
     }
     when(offsetCheckpoints.fetch(ArgumentMatchers.anyString, ArgumentMatchers.eq(topicPartition)))
@@ -316,10 +335,11 @@ class PartitionLockTest extends Logging {
   }
 
   private def append(partition: Partition, numRecords: Int, followerQueues: Seq[ArrayBlockingQueue[MemoryRecords]]): Unit = {
+    val requestLocal = RequestLocal.withThreadConfinedCaching
     (0 until numRecords).foreach { _ =>
       val batch = TestUtils.records(records = List(new SimpleRecord("k1".getBytes, "v1".getBytes),
         new SimpleRecord("k2".getBytes, "v2".getBytes)))
-      partition.appendRecordsToLeader(batch, origin = AppendOrigin.Client, requiredAcks = 0)
+      partition.appendRecordsToLeader(batch, origin = AppendOrigin.Client, requiredAcks = 0, requestLocal)
       followerQueues.foreach(_.put(batch))
     }
   }
@@ -341,26 +361,38 @@ class PartitionLockTest extends Logging {
     }
   }
 
-  private class SlowLog(log: Log, mockTime: MockTime, appendSemaphore: Semaphore) extends Log(
+  private class SlowLog(
+    log: Log,
+    segments: LogSegments,
+    offsets: LoadedLogOffsets,
+    leaderEpochCache: Option[LeaderEpochFileCache],
+    producerStateManager: ProducerStateManager,
+    mockTime: MockTime,
+    logDirFailureChannel: LogDirFailureChannel,
+    appendSemaphore: Semaphore
+  ) extends Log(
     log.dir,
     log.config,
-    log.logStartOffset,
-    log.recoveryPoint,
+    segments,
+    offsets.logStartOffset,
+    offsets.recoveryPoint,
+    offsets.nextOffsetMetadata,
     mockTime.scheduler,
     new BrokerTopicStats,
-    log.time,
-    log.maxProducerIdExpirationMs,
+    mockTime,
     log.producerIdExpirationCheckIntervalMs,
     log.topicPartition,
-    log.producerStateManager,
-    new LogDirFailureChannel(1),
-    topicId = None,
+    leaderEpochCache,
+    producerStateManager,
+    logDirFailureChannel,
+    _topicId = None,
     keepPartitionMetadataFile = true) {
 
-    override def appendAsLeader(records: MemoryRecords, leaderEpoch: Int, origin: AppendOrigin, interBrokerProtocolVersion: ApiVersion): LogAppendInfo = {
-      val appendInfo = super.appendAsLeader(records, leaderEpoch, origin, interBrokerProtocolVersion)
+    override def appendAsLeader(records: MemoryRecords, leaderEpoch: Int, origin: AppendOrigin,
+                                interBrokerProtocolVersion: ApiVersion, requestLocal: RequestLocal): LogAppendInfo = {
+      val appendInfo = super.appendAsLeader(records, leaderEpoch, origin, interBrokerProtocolVersion, requestLocal)
       appendSemaphore.acquire()
       appendInfo
     }
-  }
+ }
 }

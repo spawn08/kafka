@@ -338,7 +338,7 @@ public interface Admin extends AutoCloseable {
      * This operation is supported by brokers with version 0.11.0.0 or higher.
      *
      * @param filter The filter to use.
-     * @return The DeleteAclsResult.
+     * @return The DescribeAclsResult.
      */
     default DescribeAclsResult describeAcls(AclBindingFilter filter) {
         return describeAcls(filter, new DescribeAclsOptions());
@@ -354,7 +354,7 @@ public interface Admin extends AutoCloseable {
      *
      * @param filter  The filter to use.
      * @param options The options to use when listing the ACLs.
-     * @return The DeleteAclsResult.
+     * @return The DescribeAclsResult.
      */
     DescribeAclsResult describeAcls(AclBindingFilter filter, DescribeAclsOptions options);
 
@@ -1489,6 +1489,71 @@ public interface Admin extends AutoCloseable {
      * @return The result
      */
     DescribeProducersResult describeProducers(Collection<TopicPartition> partitions, DescribeProducersOptions options);
+
+    /**
+     * Describe the state of a set of transactional IDs. See
+     * {@link #describeTransactions(Collection, DescribeTransactionsOptions)} for more details.
+     *
+     * @param transactionalIds The set of transactional IDs to query
+     * @return The result
+     */
+    default DescribeTransactionsResult describeTransactions(Collection<String> transactionalIds) {
+        return describeTransactions(transactionalIds, new DescribeTransactionsOptions());
+    }
+
+    /**
+     * Describe the state of a set of transactional IDs from the respective transaction coordinators,
+     * which are dynamically discovered.
+     *
+     * @param transactionalIds The set of transactional IDs to query
+     * @param options Options to control the method behavior
+     * @return The result
+     */
+    DescribeTransactionsResult describeTransactions(Collection<String> transactionalIds, DescribeTransactionsOptions options);
+
+    /**
+     * Forcefully abort a transaction which is open on a topic partition. See
+     * {@link #abortTransaction(AbortTransactionSpec, AbortTransactionOptions)} for more details.
+     *
+     * @param spec The transaction specification including topic partition and producer details
+     * @return The result
+     */
+    default AbortTransactionResult abortTransaction(AbortTransactionSpec spec) {
+        return abortTransaction(spec, new AbortTransactionOptions());
+    }
+
+    /**
+     * Forcefully abort a transaction which is open on a topic partition. This will
+     * send a `WriteTxnMarkers` request to the partition leader in order to abort the
+     * transaction. This requires administrative privileges.
+     *
+     * @param spec The transaction specification including topic partition and producer details
+     * @param options Options to control the method behavior (including filters)
+     * @return The result
+     */
+    AbortTransactionResult abortTransaction(AbortTransactionSpec spec, AbortTransactionOptions options);
+
+    /**
+     * List active transactions in the cluster. See
+     * {@link #listTransactions(ListTransactionsOptions)} for more details.
+     *
+     * @return The result
+     */
+    default ListTransactionsResult listTransactions() {
+        return listTransactions(new ListTransactionsOptions());
+    }
+
+    /**
+     * List active transactions in the cluster. This will query all potential transaction
+     * coordinators in the cluster and collect the state of all transactions. Users
+     * should typically attempt to reduce the size of the result set using
+     * {@link ListTransactionsOptions#filterProducerIds(Collection)} or
+     * {@link ListTransactionsOptions#filterStates(Collection)}
+     *
+     * @param options Options to control the method behavior (including filters)
+     * @return The result
+     */
+    ListTransactionsResult listTransactions(ListTransactionsOptions options);
 
     /**
      * Get the metrics kept by the adminClient
